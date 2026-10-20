@@ -1,0 +1,6 @@
+{
+  "name": "SalKal - Israeli Grocery Cart Handoff",
+  "description": "Plan meals, compare Israeli supermarket prices, optimize split baskets, and hand off your cart with 1-click across Carrefour, Victory, Rami Levy, Machsanei HaShuk, and more.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
