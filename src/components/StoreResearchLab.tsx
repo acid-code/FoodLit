@@ -15,7 +15,7 @@ import {
   Send,
   HelpCircle,
 } from 'lucide-react';
-import { STORES } from '../data/mockData';
+import { buildSelfPointProbeUrl } from '../utils/cartHandoff';
 
 export const StoreResearchLab: React.FC = () => {
   const [testBarcode, setTestBarcode] = useState('7290004131074');
@@ -23,7 +23,7 @@ export const StoreResearchLab: React.FC = () => {
   const [testStoreDomain, setTestStoreDomain] = useState('www.carrefour.co.il');
   const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'tester' | 'legal' | 'platform'>('matrix');
 
-  const generatedTestUrl = `https://${testStoreDomain}/?externalCart=${testBarcode},${testQty}&externalName=SalKal`;
+  const generatedTestUrl = buildSelfPointProbeUrl(testStoreDomain, testBarcode.trim(), Number(testQty));
 
   const chainResearchDetails = [
     {
@@ -287,7 +287,7 @@ export const StoreResearchLab: React.FC = () => {
                 className="w-full p-2 bg-white border border-slate-200 rounded-xl font-mono"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">
-                למשל: 7290000042404 (חלב תנובה 3%) או 7290000048406 (קוטג׳)
+                ספרות בלבד, 8–14. דוגמה מהקטלוג המקומי: 7290004131074. לא מאומת מול קובץ השקיפות.
               </span>
             </div>
 
@@ -308,14 +308,15 @@ export const StoreResearchLab: React.FC = () => {
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-700">ה-URL שנוצר:</label>
             <div className="p-3 bg-slate-900 text-emerald-400 rounded-xl font-mono text-xs break-all select-all">
-              {generatedTestUrl}
+              {generatedTestUrl ?? 'ברקוד או כמות לא תקינים. הקישור נבנה רק ל-5 אתרי Self-Point ועם ברקוד מספרי.'}
             </div>
           </div>
 
           <div className="flex gap-3">
             <button
-              onClick={() => window.open(generatedTestUrl, '_blank', 'noopener,noreferrer')}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-sm"
+              onClick={() => generatedTestUrl && window.open(generatedTestUrl, '_blank', 'noopener,noreferrer')}
+              disabled={!generatedTestUrl}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               <ExternalLink className="w-4 h-4" />
               <span>פתח בחלון חדש ובדוק תגובת האתר</span>
@@ -447,7 +448,7 @@ export const StoreResearchLab: React.FC = () => {
                 <span>חוק הגנת הפרטיות (תיקון 13, נכנס לתוקף אוגוסט 2025)</span>
               </div>
               <p>
-                האפליקציה מאפשרת חוויית אורח מלאה ללא חובת הרשמה (No-Login First). רשימות קניות נשמרות מקומית בדפדפן (LocalStorage / IndexedDB), ללא איסוף נתונים רגישים על הרגלי צריכה.
+                האפליקציה מאפשרת חוויית אורח ללא חשבון. העדפות ותפריט נשמרים ב-localStorage על המכשיר, ולא בעוגייה שנשלחת לשרת בכל בקשה. עדיין חסרה מדיניות פרטיות לפני השקה.
               </p>
             </div>
 

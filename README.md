@@ -1,6 +1,27 @@
 # SalKal · סל קל 🛒
 > **תכנון ארוחות שבועי חכם, בדיקת מזווה מקדימה והעברת סל ישירה לרשתות השיווק בישראל**  
-> *Smart weekly meal planning, home pantry verification, and 1-click grocery cart injection into Israeli supermarket chains.*
+> *Smart weekly meal planning, home pantry verification, and a cart handoff into Israeli supermarket chains.*
+
+## Setup and limits
+
+```bash
+npm install
+npm test          # handoff URL, comparison ranking, mapping barcodes
+npm run lint      # tsc --noEmit
+npm run dev       # http://localhost:3000
+npm run build && NODE_ENV=production npm start
+```
+
+`GEMINI_API_KEY` is optional. Copy `.env.example` to `.env` (gitignored). Without a key, recipe requests use the local chef.
+
+What this MVP actually does today:
+
+- Meal plan, pantry check, and a cart built from a **sample catalog**. Prices are illustrative. They are not read from the public price files required by the 2014 Food Sector Competition Law.
+- Self-Point chains (Carrefour, Victory, Machsanei HaShuk, Keshet Teamim, Tiv Taam) get a guest URL in the form verified in October 2026: `https://<host>/?externalCart=<barcode>,<qty>;<barcode>,<qty>&externalName=SalKal`. Commas and semicolons stay literal. Safe mode omits weighed items and barcodes that are not flagged as packaged-and-verified. That flag is still a sample-catalog mark, not a live catalog check.
+- Rami Levy gets a text list for **קנייה מהירה**. Shufersal gets a copyable list and search links. There is no logged-in cart script, bookmarklet, or MCP payload.
+- Preferences stay in `localStorage`. They are not put in a cookie.
+
+Before a public launch: ingest the official price files, verify barcodes (a tested code has come back as the wrong product), publish a privacy notice for Amendment 13, and ask Stor.ai before relying on the undocumented `externalCart` parameter.
 
 ---
 
@@ -21,7 +42,7 @@
 - תכנון שבועי של מה אוכלים בכל יום.
 - מניעת קניות מיותרות על ידי **בדיקת מזווה מקדימה ("מה שיש בבית") לפני יצירת סל**.
 - התאמה מדויקת לסועדים (יחיד, זוג, משפחה) ומכשירי המטבח הקיימים.
-- **העברת סל ישירה, מדויקת ובטוחה** לרשתות המזון המובילות (קרפור, רמי לוי, שופרסל, ויקטורי, מחסני השוק, קשת טעמים, טיב טעם) ללא איפוס עגלה או נפילת פריטים.
+- **העברת סל** לרשתות המזון (קרפור, רמי לוי, שופרסל, ויקטורי, מחסני השוק, קשת טעמים, טיב טעם). בקרפור וברשתות Self-Point האחרות זה קישור אורח. ברמי לוי ובשופרסל זו רשימה להדבקה או לחיפוש. אין הבטחה שאף פריט לא יידחה על ידי האתר.
 
 ---
 
@@ -109,7 +130,7 @@ interface StoreProductMapping {
   lastVerified: string;
 }
 ```
-שירות הסנכרון `storeSyncService.ts` מאפשר בדיקה תקופתית או ידנית של קטלוגי הרשתות, מיפוי מוצרים חדשים ועדכון המזהים הפנימיים.
+שירות `storeSyncService.ts` מרענן את מאגר הדוגמה המקומי. הוא לא מוריד קבצי מחירים ולא מק״טים פנימיים של הרשתות.
 
 ---
 

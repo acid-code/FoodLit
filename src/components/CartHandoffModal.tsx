@@ -11,23 +11,17 @@ import {
   AlertTriangle,
   CheckCircle2,
   Database,
-  Layers,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { Store, CartItem } from '../types';
 import { STORES } from '../data/mockData';
 import {
-  buildSelfPointUrl,
   buildRamiLevyQuickBuyText,
   buildShufersalShareText,
   computeStoreBasketCost,
   buildStoreSearchUrl,
-  checkStoreCompatibility,
   buildStoreFormattedList,
+  planSelfPointHandoff,
 } from '../utils/cartHandoff';
-import { generateShufersalMcpPayload } from '../utils/shufersalAutomation';
-import { generateRamiLevyMcpPayload } from '../utils/ramiLevyAutomation';
 import { InStoreWalkList } from './InStoreWalkList';
 import { StoreMappingDbView } from './StoreMappingDbView';
 
@@ -51,7 +45,7 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
   const [safeMode, setSafeMode] = useState<boolean>(true);
   const [markedAddedItems, setMarkedAddedItems] = useState<Record<string, boolean>>({});
   const [showMappingDb, setShowMappingDb] = useState(false);
-  const [showDevMcpDetails, setShowDevMcpDetails] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const toggleMarkedItem = (productId: string) => {
     setMarkedAddedItems((prev) => ({
@@ -60,32 +54,30 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
     }));
   };
 
-  const storeReport = checkStoreCompatibility(cartItems, selectedStore);
-  const { total } = computeStoreBasketCost(selectedStore.id, cartItems);
-
-  // Build the live Self-Point URL:
-  // When safeMode = true, ONLY send 100% verified packaged items with fixed barcodes.
-  // This prevents Stor.ai from rejecting the cart with "לא הצלחנו לזהות X מוצרים" or wiping other items!
-  const selfPointUrl = buildSelfPointUrl(
-    selectedStore.domain,
-    cartItems,
-    'SalKal',
-    safeMode,
-    selectedStore.isNonKosherSpecialist
-  );
-
-  const activeItemsForUrl = safeMode
-    ? storeReport.safeVerifiedItems
-    : cartItems.filter((i) => selectedStore.isNonKosherSpecialist || i.product.isKosher !== false);
+  const basketQuote = computeStoreBasketCost(selectedStore.id, cartItems);
+  const handoffOptions = {
+    appName: 'SalKal',
+    isNonKosherSpecialist: selectedStore.isNonKosherSpecialist === true,
+  };
+  const safePlan = planSelfPointHandoff(selectedStore.domain, cartItems, { ...handoffOptions, safeMode: true });
+  const fullPlan = planSelfPointHandoff(selectedStore.domain, cartItems, { ...handoffOptions, safeMode: false });
+  const activePlan = safeMode ? safePlan : fullPlan;
+  const selfPointUrl = activePlan.url;
 
   const ramiLevyText = buildRamiLevyQuickBuyText(cartItems);
   const shufersalText = buildShufersalShareText(cartItems);
   const generalStoreListText = buildStoreFormattedList(selectedStore, cartItems);
 
-  const handleCopy = (text: string, type: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedType(type);
-    setTimeout(() => setCopiedType(null), 2500);
+  const handleCopy = async (text: string, type: string) => {
+    setCopyFailed(false);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(text);
+      setCopiedType(type);
+      setTimeout(() => setCopiedType(null), 2500);
+    } catch {
+      setCopyFailed(true);
+    }
   };
 
   const handleOpenStoreUrl = (url: string) => {
@@ -103,8 +95,8 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-black">מאגר מזהים פנימיים וסנכרון סופרמרקטים</span>
-              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-full text-[10px] font-bold">
-                פעיל ומסונכרן ✓
+              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-200 border border-amber-400/30 rounded-full text-[10px] font-bold">
+                ברקודים לדוגמה, בלי מק״ט רשת מאומת
               </span>
             </div>
             <p className="text-[11px] text-slate-300">
@@ -218,10 +210,15 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
           </div>
 
           <div className="text-left bg-white px-4 py-2 rounded-xl border border-slate-200 shrink-0 self-start sm:self-auto">
-            <div className="text-[11px] text-slate-500">עלות משוערת:</div>
+            <div className="text-[11px] text-slate-500">עלות משוערת (מחירי דוגמה):</div>
             <div className="text-lg font-black text-slate-900 tabular-nums">
-              ₪{total.toFixed(2)}
+              ₪{basketQuote.total.toFixed(2)}
             </div>
+            {basketQuote.missingItems.length > 0 && (
+              <div className="text-[10px] text-amber-700">
+                מחיר ל-{basketQuote.availableItemsCount} מתוך {cartItems.length} מוצרים
+              </div>
+            )}
           </div>
         </div>
 
@@ -269,8 +266,13 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
                   <span>הפתרון המאומת: העברה נקייה ובטוחה</span>
                 </div>
                 <p className="text-[11px] text-slate-700 leading-relaxed">
-                  הקישור הישיר מזריק כעת <strong>{storeReport.safeCount} מוצרים מאומתים</strong> (מוצרי חלב, ביצים, פסטות, אורז, רטבים, קפה, שימורים ומאפים) ישירות לעגלה ללא שום שגיאה.
-                  את {storeReport.weighedCount} פריטי השקילה הטריים (ירקות/קצביה) תוכלו להוסיף בקליק אחד לפי משקל דרך הרשימה מטה!
+                  הקישור שולח כעת <strong>{activePlan.included.length} מוצרים עם ברקוד מספרי שסומן כמאומת בקטלוג הדוגמה</strong>.
+                  {activePlan.manual.length > 0 && (
+                    <>
+                      {' '}
+                      {activePlan.manual.length} פריטים (שקילה, קצביה, או ברקוד שלא סומן כמאומת) נשארים מחוץ לקישור ואפשר לחפש אותם באתר.
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -287,7 +289,7 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
                         : 'text-blue-900 hover:bg-blue-200/50'
                     }`}
                   >
-                    🛡️ העברה בטוחה ({storeReport.safeCount} פריטים) - מומלץ
+                    🛡️ העברה בטוחה ({safePlan.included.length} פריטים) - מומלץ
                   </button>
                   <button
                     type="button"
@@ -298,19 +300,19 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
                         : 'text-blue-900 hover:bg-blue-200/50'
                     }`}
                   >
-                    ⚠️ ניסיון העברה מלאה ({cartItems.length} פריטים)
+                    ⚠️ ניסיון העברה מלאה ({fullPlan.included.length} פריטים)
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Non-Kosher Notice if present */}
-            {storeReport.nonKosherCount > 0 && !selectedStore.isNonKosherSpecialist && (
+            {activePlan.excludedNonKosher.length > 0 && !selectedStore.isNonKosherSpecialist && (
               <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-300 text-xs text-amber-950 flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <strong className="block font-bold">
-                    שימו לב: {storeReport.nonKosherCount} מוצרים לא-כשרים בסל סוננו מקישור רשת {selectedStore.nameHe}
+                    שימו לב: {activePlan.excludedNonKosher.length} מוצרים לא-כשרים בסל סוננו מקישור רשת {selectedStore.nameHe}
                   </strong>
                   <span className="text-[11px] text-amber-800">
                     מוצרים כמו בייקון או שרימפס אינם נמכרים ברשת כשרה זו. אם ברצונכם לרכוש אותם,
@@ -321,12 +323,12 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
             )}
 
             {/* Weighed Produce & Fresh Butcher Quick Addition Strip */}
-            {storeReport.weighedCount > 0 && (
+            {activePlan.manual.length > 0 && (
               <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
                     <ShoppingBag className="w-4 h-4 text-emerald-600" />
-                    <span>השלמת פריטי שקילה וקצביה טריים ({storeReport.weighedCount} מוצרים):</span>
+                    <span>פריטים שלא נכנסו לקישור ({activePlan.manual.length} מוצרים):</span>
                   </div>
                   <span className="text-[10px] text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
                     קליק אחד לחיפוש
@@ -338,7 +340,7 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
                 </p>
 
                 <div className="divide-y divide-emerald-100 bg-white rounded-xl border border-emerald-200/80 p-2 text-xs">
-                  {storeReport.weighedProduceAndButcherItems.map((item) => {
+                  {activePlan.manual.map((item) => {
                     const isMarked = !!markedAddedItems[item.product.id];
                     const searchUrl = buildStoreSearchUrl(selectedStore, item.product.carrefourSearchQuery || item.product.nameHe);
 
@@ -394,7 +396,7 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-700">
-                  הקישור שנוצר עבור {activeItemsForUrl.length} המוצרים המאומתים שלך:
+                  הקישור שנוצר עבור {activePlan.included.length} המוצרים שייכנסו לדיאלוג:
                 </label>
                 {safeMode && (
                   <span className="text-[10px] text-emerald-700 bg-emerald-50 font-bold px-2 py-0.5 rounded border border-emerald-200">
@@ -432,12 +434,15 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
             {/* Primary Action Button */}
             <div className="flex flex-wrap gap-3 pt-2">
               <button
-                onClick={() => handleOpenStoreUrl(selfPointUrl)}
-                className="px-6 py-3.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-98"
+                onClick={() => selfPointUrl && handleOpenStoreUrl(selfPointUrl)}
+                disabled={!selfPointUrl}
+                className="px-6 py-3.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-98 disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 <ExternalLink className="w-4 h-4" />
                 <span>
-                  פתח את הסל המאומת באתר {selectedStore.nameHe} ({activeItemsForUrl.length} מוצרים)
+                  {selfPointUrl
+                    ? `פתח את הסל באתר ${selectedStore.nameHe} (${activePlan.included.length} מוצרים)`
+                    : 'אין מוצרים עם ברקוד שאפשר לשלוח בקישור'}
                 </span>
               </button>
 
@@ -472,7 +477,7 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
                     </strong>
                   </div>
                   <p className="text-xs text-slate-600">
-                    נמצאו <strong>{activeItemsForUrl.length} מוצרים</strong> להוספה ישירה לסל שלכם.
+                    נמצאו <strong>{activePlan.included.length} מוצרים</strong> להוספה ישירה לסל שלכם.
                   </p>
                   <div className="flex items-center gap-2 pt-2">
                     <button
@@ -588,21 +593,6 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
               </div>
             </div>
 
-            {/* Collapsed Technical MCP Section */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setShowDevMcpDetails(!showDevMcpDetails)}
-                className="text-xs text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>{showDevMcpDetails ? 'הסתר מידע טכני (MCP / REST)' : 'מידע טכני למפתחים ו-MCP ▾'}</span>
-              </button>
-              {showDevMcpDetails && (
-                <div className="mt-2 p-3 bg-slate-900 text-slate-200 rounded-xl text-xs font-mono overflow-x-auto max-h-40 leading-relaxed" dir="ltr">
-                  {generateRamiLevyMcpPayload(cartItems)}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
@@ -706,21 +696,6 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
               </div>
             </div>
 
-            {/* Collapsed Technical MCP Section */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setShowDevMcpDetails(!showDevMcpDetails)}
-                className="text-xs text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>{showDevMcpDetails ? 'הסתר מידע טכני (Shufersal MCP)' : 'מידע טכני לסוכני AI ו-MCP ▾'}</span>
-              </button>
-              {showDevMcpDetails && (
-                <div className="mt-2 p-3 bg-slate-900 text-slate-200 rounded-xl text-xs font-mono overflow-x-auto max-h-40 leading-relaxed" dir="ltr">
-                  {generateShufersalMcpPayload(cartItems)}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
@@ -775,7 +750,9 @@ export const CartHandoffModal: React.FC<CartHandoffModalProps> = ({
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              שימוש תואם תקנות: ללא איסוף סיסמאות או גירוד לא מורשה.
+              {copyFailed
+                ? 'ההעתקה ללוח נכשלה. סמנו את הטקסט והעתיקו ידנית.'
+                : 'ההעברה נעשית בקישור ציבורי או בהדבקה. אין התחברות אוטומטית לאתרי הרשתות.'}
             </span>
           </div>
           <span className="text-slate-400">

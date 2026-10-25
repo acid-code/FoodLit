@@ -78,7 +78,7 @@ export const STORES: Store[] = [
     platform: 'self-point',
     domain: 'www.tivtaam.co.il',
     accentColor: '#b91c1c',
-    confidence: 'high',
+    confidence: 'medium',
     requiresLogin: false,
     handoffMethodHe: 'סל חיצוני Self-Point (externalCart) - העברה ישירה לטיב טעם',
     handoffMethodEn: 'Self-Point externalCart parameter - 1-click cart handoff',

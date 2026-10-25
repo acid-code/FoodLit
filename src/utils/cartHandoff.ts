@@ -2,73 +2,167 @@ import { CartItem, Store, StoreId, SplitBasketOptimization } from '../types';
 import { STORES } from '../data/mockData';
 
 /**
- * Builds the exact Self-Point (Stor.ai) externalCart handoff URL
- * Format: https://<domain>/?externalCart=<barcode>,<qty>;<barcode2>,<qty2>&externalName=<appName>
- *
- * NOTE FOR CARREFOUR: If Stor.ai encounters unknown barcodes (such as loose produce weighed on scales
- * or unlisted butcher meats), Carrefour displays an error and in many sessions wipes the entire cart.
- * When carrefourSafeMode is true (default), we only inject 100% verified packaged barcodes, guaranteed
- * to be in the catalog, preventing any cart reset. Weighed produce/meat are added via 1-click quick-search.
+ * Hosts verified in October 2026 to open an add-to-cart dialog from:
+ * https://<host>/?externalCart=<barcode>,<qty>;<barcode>,<qty>&externalName=<name>
+ * Commas and semicolons are literal. Encoding them makes the chain miss the list.
  */
+export const SELF_POINT_HOSTS = [
+  'www.carrefour.co.il',
+  'www.victoryonline.co.il',
+  'www.mck.co.il',
+  'www.keshet-teamim.co.il',
+  'www.tivtaam.co.il',
+] as const;
+
+export const HANDOFF_APP_NAME = 'SalKal';
+
+const HANDOFF_BARCODE = /^[0-9]{8,14}$/;
+const MAX_HANDOFF_QTY = 99;
+
+export function isSelfPointHost(host: string): boolean {
+  return (SELF_POINT_HOSTS as readonly string[]).includes(host.trim().toLowerCase());
+}
+
+export function isHandoffBarcode(value: unknown): value is string {
+  return typeof value === 'string' && HANDOFF_BARCODE.test(value);
+}
+
+/** Integer units for externalCart. Fractional or non-finite quantities are refused. */
+export function toHandoffQuantity(quantity: number): number | null {
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  const rounded = Math.round(quantity);
+  if (rounded < 1) return null;
+  return Math.min(MAX_HANDOFF_QTY, rounded);
+}
+
+export interface SelfPointHandoffPlan {
+  url: string;
+  included: CartItem[];
+  manual: CartItem[];
+  excludedNonKosher: CartItem[];
+  quantitiesByBarcode: Record<string, number>;
+}
+
+function barcodeForItem(item: CartItem, storeDomain: string): string | null {
+  const preferCarrefourCode = storeDomain.toLowerCase().includes('carrefour');
+  const candidates = preferCarrefourCode
+    ? [item.product.carrefourBarcode, item.product.barcode]
+    : [item.product.barcode];
+  for (const candidate of candidates) {
+    if (isHandoffBarcode(candidate)) return candidate;
+  }
+  return null;
+}
+
+function isKosherBlocked(item: CartItem, isNonKosherSpecialist: boolean): boolean {
+  return !isNonKosherSpecialist && item.product.isKosher === false;
+}
+
 /**
- * Builds the exact Self-Point (Stor.ai) externalCart handoff URL
- * Format: https://<domain>/?externalCart=<barcode>,<qty>;<barcode2>,<qty2>&externalName=<appName>
- *
- * NOTE FOR STOR.AI PLATFORMS (Carrefour, Victory, Machsanei HaShuk, Keshet Teamim, Tiv Taam):
- * Stor.ai only matches items that have fixed EAN-13 barcodes in their online catalog.
- * Loose weighed produce (tomatoes, cucumbers, onions) and fresh butcher counter meats (chicken breast, beef)
- * are sold by weight at branches and DO NOT have universal barcodes in Stor.ai.
- * If unrecognized barcodes are sent, Stor.ai displays an annoying error ("לא הצלחנו לזהות X מוצרים מאתר SalKal")
- * and can wipe out the cart.
- * When safeMode is true (default), we ONLY inject verified packaged groceries (dairy, eggs, pasta, rice, oil, etc.).
- * Weighed items are conveniently presented with 1-click direct search buttons.
+ * Safe mode only sends packaged lines flagged as catalog-verified.
+ * Weighed produce, butcher items, and unverified barcodes stay out of the URL:
+ * an unrecognized code can make Stor.ai reject or clear the imported list.
+ */
+function isSafeToInject(item: CartItem): boolean {
+  return item.product.isWeighedOrButcher !== true && item.product.isCarrefourVerifiedPackaged === true;
+}
+
+export function planSelfPointHandoff(
+  storeDomain: string,
+  items: CartItem[],
+  options: {
+    appName?: string;
+    safeMode?: boolean;
+    isNonKosherSpecialist?: boolean;
+  } = {}
+): SelfPointHandoffPlan {
+  const safeMode = options.safeMode !== false;
+  const isNonKosherSpecialist = options.isNonKosherSpecialist === true;
+  const appName = (options.appName || HANDOFF_APP_NAME).trim() || HANDOFF_APP_NAME;
+  const host = storeDomain.trim().toLowerCase();
+  const included: CartItem[] = [];
+  const manual: CartItem[] = [];
+  const excludedNonKosher: CartItem[] = [];
+  const quantitiesByBarcode: Record<string, number> = {};
+  const order: string[] = [];
+
+  for (const item of items) {
+    if (isKosherBlocked(item, isNonKosherSpecialist)) {
+      excludedNonKosher.push(item);
+      continue;
+    }
+    if (safeMode && !isSafeToInject(item)) {
+      manual.push(item);
+      continue;
+    }
+    const code = barcodeForItem(item, host);
+    const qty = toHandoffQuantity(item.quantity);
+    if (!code || qty == null) {
+      manual.push(item);
+      continue;
+    }
+    if (quantitiesByBarcode[code] == null) {
+      order.push(code);
+      included.push(item);
+      quantitiesByBarcode[code] = qty;
+    } else {
+      quantitiesByBarcode[code] = Math.min(MAX_HANDOFF_QTY, quantitiesByBarcode[code] + qty);
+    }
+  }
+
+  if (!isSelfPointHost(host)) {
+    return {
+      url: '',
+      included: [],
+      manual: [...manual, ...included],
+      excludedNonKosher,
+      quantitiesByBarcode: {},
+    };
+  }
+
+  if (order.length === 0) {
+    return { url: '', included, manual, excludedNonKosher, quantitiesByBarcode };
+  }
+
+  const cartString = order.map((code) => `${code},${quantitiesByBarcode[code]}`).join(';');
+  const url = `https://${host}/?externalCart=${cartString}&externalName=${encodeURIComponent(appName)}`;
+  return { url, included, manual, excludedNonKosher, quantitiesByBarcode };
+}
+
+/**
+ * One-barcode probe used by the research lab. Rejects anything that is not a
+ * known Self-Point host plus a numeric barcode, so the tester cannot be turned
+ * into an open redirect or a query-string injection.
+ */
+export function buildSelfPointProbeUrl(
+  storeDomain: string,
+  barcode: string,
+  quantity: number,
+  appName = HANDOFF_APP_NAME
+): string | null {
+  const host = storeDomain.trim().toLowerCase();
+  const qty = toHandoffQuantity(quantity);
+  if (!isSelfPointHost(host) || !isHandoffBarcode(barcode.trim()) || qty == null) return null;
+  return `https://${host}/?externalCart=${barcode.trim()},${qty}&externalName=${encodeURIComponent(appName)}`;
+}
+
+/**
+ * Builds the Self-Point externalCart URL verified in October 2026.
+ * Returns an empty string when the host is not one of the five tested chains
+ * or when no line is safe to send.
  */
 export function buildSelfPointUrl(
   storeDomain: string,
   items: CartItem[],
-  appName = 'SalKal',
+  appName = HANDOFF_APP_NAME,
   safeMode = true,
   isNonKosherSpecialist = false
 ): string {
-  if (items.length === 0) return `https://${storeDomain}`;
-
-  const isCarrefour = storeDomain.toLowerCase().includes('carrefour');
-
-  // Filter items: In safe mode, exclude weighed produce/butcher and filter out non-kosher for kosher stores
-  let targetItems = items;
-  if (safeMode) {
-    targetItems = items.filter((i) => {
-      // Never send fresh produce or butcher counter items via Stor.ai externalCart
-      if (i.product.isWeighedOrButcher) return false;
-      // Filter out non-kosher items for kosher supermarkets
-      if (!isNonKosherSpecialist && i.product.isKosher === false) return false;
-      // Only include items with valid barcodes
-      return !!i.product.barcode && i.product.barcode.length >= 8;
-    });
-  } else {
-    if (!isNonKosherSpecialist) {
-      targetItems = items.filter((i) => i.product.isKosher !== false);
-    }
-  }
-
-  if (targetItems.length === 0) {
-    return `https://${storeDomain}`;
-  }
-
-  const cartString = targetItems
-    .map((item) => {
-      const code = isCarrefour && item.product.carrefourBarcode
-        ? item.product.carrefourBarcode
-        : item.product.barcode;
-      return `${code},${Math.max(1, Math.round(item.quantity))}`;
-    })
-    .join(';');
-
-  const params = new URLSearchParams();
-  params.set('externalCart', cartString);
-  params.set('externalName', appName);
-
-  return `https://${storeDomain}/?${params.toString()}`;
+  return planSelfPointHandoff(storeDomain, items, {
+    appName,
+    safeMode,
+    isNonKosherSpecialist,
+  }).url;
 }
 
 /**
@@ -82,7 +176,7 @@ export function buildStoreSearchUrl(store: Store, query: string): string {
     case 'victory':
       return `https://www.victoryonline.co.il/search?q=${enc}`;
     case 'machsaneihashuk':
-      return `https://www.mashuk.co.il/search?q=${enc}`;
+      return `https://www.mck.co.il/search?q=${enc}`;
     case 'keshet':
       return `https://www.keshet-teamim.co.il/search?q=${enc}`;
     case 'tivtaam':
@@ -103,10 +197,12 @@ export function buildCarrefourSearchUrl(query: string): string {
 export interface SelfPointCompatibilityReport {
   safeVerifiedItems: CartItem[];
   weighedProduceAndButcherItems: CartItem[];
+  unverifiedPackagedItems: CartItem[];
   nonKosherItems: CartItem[];
   totalCount: number;
   safeCount: number;
   weighedCount: number;
+  unverifiedCount: number;
   nonKosherCount: number;
   safePercentage: number;
 }
@@ -118,34 +214,31 @@ export function checkStoreCompatibility(
   items: CartItem[],
   store: Store
 ): SelfPointCompatibilityReport {
-  const safeVerifiedItems: CartItem[] = [];
-  const weighedProduceAndButcherItems: CartItem[] = [];
-  const nonKosherItems: CartItem[] = [];
-  const isKosherStore = !store.isNonKosherSpecialist;
-
-  for (const item of items) {
-    if (isKosherStore && item.product.isKosher === false) {
-      nonKosherItems.push(item);
-    } else if (item.product.isWeighedOrButcher) {
-      weighedProduceAndButcherItems.push(item);
-    } else {
-      safeVerifiedItems.push(item);
-    }
-  }
+  const plan = planSelfPointHandoff(store.domain, items, {
+    safeMode: true,
+    isNonKosherSpecialist: store.isNonKosherSpecialist === true,
+  });
+  const weighedProduceAndButcherItems = plan.manual.filter((item) => item.product.isWeighedOrButcher === true);
+  const unverifiedPackagedItems = plan.manual.filter((item) => item.product.isWeighedOrButcher !== true);
+  const safeVerifiedItems = plan.included;
+  const nonKosherItems = plan.excludedNonKosher;
 
   const totalCount = items.length;
   const safeCount = safeVerifiedItems.length;
   const weighedCount = weighedProduceAndButcherItems.length;
+  const unverifiedCount = unverifiedPackagedItems.length;
   const nonKosherCount = nonKosherItems.length;
   const safePercentage = totalCount > 0 ? Math.round((safeCount / totalCount) * 100) : 100;
 
   return {
     safeVerifiedItems,
     weighedProduceAndButcherItems,
+    unverifiedPackagedItems,
     nonKosherItems,
     totalCount,
     safeCount,
     weighedCount,
+    unverifiedCount,
     nonKosherCount,
     safePercentage,
   };
@@ -179,6 +272,14 @@ export function buildCarrefourQuickList(items: CartItem[]): string {
     result += `\n`;
   }
 
+  if (comp.unverifiedPackagedItems.length > 0) {
+    result += `🔎 מוצרים ארוזים בלי ברקוד מאומת (חיפוש ידני, לא נכנסו לקישור - ${comp.unverifiedPackagedItems.length}):\n`;
+    comp.unverifiedPackagedItems.forEach((i) => {
+      result += `• ${i.quantity} יח׳ ${i.product.nameHe}\n`;
+    });
+    result += `\n`;
+  }
+
   if (comp.nonKosherItems.length > 0) {
     result += `⚠️ מוצרים לא-כשרים (אינם נמכרים בקרפור - לרכישה בטיב טעם):\n`;
     comp.nonKosherItems.forEach((i) => {
@@ -194,7 +295,13 @@ export function buildCarrefourQuickList(items: CartItem[]): string {
  */
 export function buildRamiLevyQuickBuyText(items: CartItem[]): string {
   return items
-    .map((item) => `${item.quantity} ${item.product.nameHe}`)
+    .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0 && item.product.nameHe.trim().length > 0)
+    .map((item) => {
+      const qty = Number.isInteger(item.quantity)
+        ? String(item.quantity)
+        : String(Math.round(item.quantity * 10) / 10);
+      return `${qty} ${item.product.nameHe.trim()}`;
+    })
     .join('\n');
 }
 
@@ -345,7 +452,8 @@ export function findOptimalSplitBasket(
           singleBestStore: singleBest.store,
           singleBestTotal: singleBest.total,
           savingsNis: savings,
-          savingsPercentage: Math.round((savings / singleBest.total) * 100),
+          savingsPercentage:
+            singleBest.total > 0 ? Math.round((savings / singleBest.total) * 100) : 0,
         };
       }
     }
@@ -367,5 +475,25 @@ export function buildStoreFormattedList(store: Store, items: CartItem[]): string
     .join('\n');
 
   return `${header}\n\n${itemsText}\n\nסה"כ מוצרים: ${items.length}`;
+}
+
+export interface StoreBasketQuote {
+  total: number;
+  isComplete: boolean;
+  availableItemsCount: number;
+}
+
+/**
+ * Complete baskets rank ahead of partial ones, even when the partial total is lower.
+ * A store missing the expensive lines must not look like the cheapest full shop.
+ */
+export function rankStoreBasketQuotes<T extends StoreBasketQuote>(quotes: T[]): T[] {
+  return [...quotes].sort((a, b) => {
+    if (a.isComplete !== b.isComplete) return a.isComplete ? -1 : 1;
+    if (!a.isComplete && a.availableItemsCount !== b.availableItemsCount) {
+      return b.availableItemsCount - a.availableItemsCount;
+    }
+    return a.total - b.total;
+  });
 }
 

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Split, ShoppingCart, ArrowLeft, Check, Sparkles, AlertCircle, ExternalLink } from 'lucide-react';
 import { CartItem, Store, StoreId } from '../types';
 import { STORES } from '../data/mockData';
-import { computeStoreBasketCost, findOptimalSplitBasket } from '../utils/cartHandoff';
+import { computeStoreBasketCost, findOptimalSplitBasket, rankStoreBasketQuotes } from '../utils/cartHandoff';
 
 interface PriceComparisonViewProps {
   cartItems: CartItem[];
@@ -18,7 +18,7 @@ export const PriceComparisonView: React.FC<PriceComparisonViewProps> = ({
 }) => {
   // Compute prices for each store
   const storeComparison = useMemo(() => {
-    return STORES.map((store) => {
+    const rows = STORES.map((store) => {
       const { total, availableItemsCount, missingItems } = computeStoreBasketCost(
         store.id,
         cartItems
@@ -28,9 +28,10 @@ export const PriceComparisonView: React.FC<PriceComparisonViewProps> = ({
         total,
         availableItemsCount,
         missingItems,
-        isComplete: availableItemsCount === cartItems.length,
+        isComplete: availableItemsCount === cartItems.length && cartItems.length > 0,
       };
-    }).sort((a, b) => a.total - b.total);
+    });
+    return rankStoreBasketQuotes(rows);
   }, [cartItems]);
 
   const cheapestStore = storeComparison.find((s) => s.isComplete && s.total > 0);
@@ -123,7 +124,7 @@ export const PriceComparisonView: React.FC<PriceComparisonViewProps> = ({
               השוואת עלות סל שלם לפי רשת (9 רשתות מובילות)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              חישוב מבוסס מחירי אמת של {cartItems.length} מוצרים שנבחרו
+              מחירי דוגמה בלבד, לא מקבצי השקיפות. סל חלקי לא מדורג כזול יותר מסל מלא.
             </p>
           </div>
           {cheapestStore && (
@@ -206,7 +207,9 @@ export const PriceComparisonView: React.FC<PriceComparisonViewProps> = ({
                       )}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">
-                      זמינות פריטים בסל: {availableItemsCount} / {cartItems.length}
+                      {isComplete
+                        ? `סל מלא · ${availableItemsCount} / ${cartItems.length}`
+                        : `סל חלקי · מחיר ל-${availableItemsCount} מתוך ${cartItems.length}, לא להשוואה מול סל מלא`}
                     </div>
                   </div>
 

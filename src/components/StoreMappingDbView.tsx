@@ -4,19 +4,11 @@ import {
   RefreshCw,
   Search,
   CheckCircle2,
-  AlertCircle,
-  Sparkles,
-  ExternalLink,
-  ShieldCheck,
-  ChevronRight,
-  Store,
-  Layers,
   Cpu,
-  Bookmark,
 } from 'lucide-react';
 import { storeSyncService, SyncStats } from '../services/storeSyncService';
 import { productMappingDb } from '../db/productMappingDb';
-import { StoreProductMapping, StoreId } from '../types';
+import { StoreProductMapping } from '../types';
 import { STORES } from '../data/mockData';
 
 interface StoreMappingDbViewProps {
@@ -42,7 +34,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
     setSyncSuccessMsg(null);
     const results = await storeSyncService.triggerSync();
     setMappings(productMappingDb.getAllMappings());
-    setSyncSuccessMsg('סנכרון קטלוגים ומזהים פנימיים הושלם בהצלחה!');
+    setSyncSuccessMsg('רענון מקומי הושלם. אין חיבור לקבצי המחירים או לקטלוג הרשת.');
     setTimeout(() => setSyncSuccessMsg(null), 4000);
   };
 
@@ -72,7 +64,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
             <h2 className="text-xl font-black">מאגר מזהים פנימיים וסנכרון סופרמרקטים</h2>
           </div>
           <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-            מאגר Cross-Reference מקומי הממפה ברקודים גלובליים (EAN-13) למזהי הקטלוג הפנימיים של שופרסל, רמי לוי, קרפור, טיב טעם וויקטורי להזרקת סל אוטומטית.
+            ברקודים מתוך קטלוג הדוגמה. אין כאן מק״ט Hybris, מזהה REST של רמי לוי, או SKU מאומת של Stor.ai, ולכן אין הזרקה אוטומטית מעבר לקישור externalCart.
           </p>
         </div>
 
@@ -87,7 +79,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
             }`}
           >
             <RefreshCw className={`w-4 h-4 ${syncStats.isSyncing ? 'animate-spin' : ''}`} />
-            <span>{syncStats.isSyncing ? 'מסנכרן קטלוגים...' : 'בצע סנכרון עכשיו (Sync Now)'}</span>
+            <span>{syncStats.isSyncing ? 'מרענן...' : 'רענון מקומי'}</span>
           </button>
           {onClose && (
             <button
@@ -111,7 +103,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
       <div className="p-6 border-b border-slate-100 bg-slate-50/50">
         <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
           <Cpu className="w-4 h-4 text-indigo-600" />
-          <span>סטטוס סנכרון ותמיכה בהזרקה אוטומטית לפי רשת</span>
+          <span>מה באמת נתמך בכל רשת</span>
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -133,16 +125,6 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1 text-[10px]">
-                  {res.automationSupport.bookmarklet && (
-                    <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 font-bold rounded">
-                      Bookmarklet ✓
-                    </span>
-                  )}
-                  {res.automationSupport.mcp && (
-                    <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 font-bold rounded">
-                      MCP ✓
-                    </span>
-                  )}
                   {res.automationSupport.directUrl && (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded">
                       URL ישיר ✓
@@ -188,7 +170,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              שופרסל (Hybris P_)
+              שופרסל
             </button>
             <button
               onClick={() => setSelectedStoreFilter('ramilevy')}
@@ -198,7 +180,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              רמי לוי (REST API)
+              רמי לוי
             </button>
             <button
               onClick={() => setSelectedStoreFilter('carrefour')}
@@ -208,7 +190,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              קרפור (Stor.ai SKU)
+              קרפור
             </button>
             <button
               onClick={() => setSelectedStoreFilter('tivtaam')}
@@ -231,7 +213,7 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                 <th className="py-3 px-4">שם המוצר</th>
                 <th className="py-3 px-4">ברקוד גלובלי (EAN-13)</th>
                 <th className="py-3 px-4">רשת סופרמרקט</th>
-                <th className="py-3 px-4">מזהה פנימי להזרקה (Store Code)</th>
+                <th className="py-3 px-4">מזהה ידוע (ברקוד)</th>
                 <th className="py-3 px-4">הזרקה אוטומטית</th>
                 <th className="py-3 px-4">מקור סנכרון</th>
               </tr>
@@ -249,6 +231,8 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                     {m.storeId === 'carrefour' && 'קרפור'}
                     {m.storeId === 'tivtaam' && 'טיב טעם'}
                     {m.storeId === 'victory' && 'ויקטורי'}
+                    {m.storeId === 'machsaneihashuk' && 'מחסני השוק'}
+                    {m.storeId === 'keshet' && 'קשת טעמים'}
                   </td>
                   <td className="py-2.5 px-4">
                     <span className="px-2 py-1 bg-slate-100 text-indigo-700 rounded-md font-mono text-[11px] font-bold border border-slate-200">
@@ -262,7 +246,9 @@ export const StoreMappingDbView: React.FC<StoreMappingDbViewProps> = ({ onClose 
                         <span>נתמך</span>
                       </span>
                     ) : (
-                      <span className="text-slate-400 text-[11px]">דרוש שקילה</span>
+                      <span className="text-slate-400 text-[11px]">
+                        {m.unitType === 'kg' ? 'שקילה, בלי הזרקה' : 'אין מזהה רשת מאומת'}
+                      </span>
                     )}
                   </td>
                   <td className="py-2.5 px-4 text-slate-500 text-[11px]">
