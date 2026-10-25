@@ -1,417 +1,57 @@
-import { StoreProductMapping, StoreId } from '../types';
+import { StoreProductMapping, StoreId, Product } from '../types';
 import { PRODUCTS } from '../data/mockData';
 
-const STORAGE_KEY = 'salkal_store_product_mappings_v1';
+const STORAGE_KEY = 'salkal_store_product_mappings_v2';
 
 /**
- * Default seeded mappings cross-referencing Israeli universal barcodes
- * with store-specific internal catalog IDs (Shufersal Hybris P_, Rami Levy ID, Carrefour/Stor.ai SKU).
+ * Chains we can name a barcode for. Internal SKUs (Shufersal P_, Rami Levy REST ids,
+ * Stor.ai short codes) are not published in a form this app has verified, so they
+ * are not invented here. direct injection stays off until a real catalog sync exists.
  */
-const INITIAL_STORE_MAPPINGS: StoreProductMapping[] = [
-  // Milk Tnuva 3%
-  {
-    productId: 'p-milk-tnuva',
-    barcode: '7290004131074',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290004131074',
-    storeInternalSku: '10101',
-    storeProductNameHe: 'חלב תנובה 3% בקרטון 1 ליטר',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-milk-tnuva',
-    barcode: '7290004131074',
-    storeId: 'ramilevy',
-    storeInternalId: '24119',
-    storeInternalSku: 'RL-MILK-3',
-    storeProductNameHe: 'חלב תנובה 3% 1 ליטר',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-milk-tnuva',
-    barcode: '7290004131074',
-    storeId: 'carrefour',
-    storeInternalId: '4131074',
-    storeProductNameHe: 'חלב תנובה 3% קרטון',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-  {
-    productId: 'p-milk-tnuva',
-    barcode: '7290004131074',
-    storeId: 'tivtaam',
-    storeInternalId: '7290004131074',
-    storeProductNameHe: 'חלב תנובה 3%',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-
-  // Cottage Tnuva 5%
-  {
-    productId: 'p-cottage-tnuva',
-    barcode: '7290000045191',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290000045191',
-    storeInternalSku: '10204',
-    storeProductNameHe: 'גבינת קוטג׳ תנובה 5% 250 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-cottage-tnuva',
-    barcode: '7290000045191',
-    storeId: 'ramilevy',
-    storeInternalId: '24580',
-    storeProductNameHe: 'קוטג׳ תנובה 5%',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-cottage-tnuva',
-    barcode: '7290000045191',
-    storeId: 'carrefour',
-    storeInternalId: '45191',
-    storeProductNameHe: 'קוטג׳ 5% תנובה 250 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-
-  // Fresh Eggs L
-  {
-    productId: 'p-eggs-l',
-    barcode: '7290001201589',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290001201589',
-    storeInternalSku: '10992',
-    storeProductNameHe: 'ביצים טריות גודל L תריסר מ. לסר',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-eggs-l',
-    barcode: '7290001201589',
-    storeId: 'ramilevy',
-    storeInternalId: '54201',
-    storeProductNameHe: 'ביצים L תריסר',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-eggs-l',
-    barcode: '7290001201589',
-    storeId: 'carrefour',
-    storeInternalId: '1201589',
-    storeProductNameHe: 'ביצים טריות L 12 יחידות',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-
-  // Spaghetti Osem
-  {
-    productId: 'p-spaghetti-osem',
-    barcode: '7290000066226',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290000066226',
-    storeProductNameHe: 'ספגטי אסם מס׳ 8 500 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-spaghetti-osem',
-    barcode: '7290000066226',
-    storeId: 'ramilevy',
-    storeInternalId: '88219',
-    storeProductNameHe: 'ספagetti אסם 500 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-spaghetti-osem',
-    barcode: '7290000066226',
-    storeId: 'carrefour',
-    storeInternalId: '66226',
-    storeProductNameHe: 'ספגטי אסם 500 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-
-  // Sugat Persian Rice
-  {
-    productId: 'p-rice-sugat',
-    barcode: '7290000211442',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290000211442',
-    storeProductNameHe: 'אורז פרסי קלאסי סוגת 1 ק״ג',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-rice-sugat',
-    barcode: '7290000211442',
-    storeId: 'ramilevy',
-    storeInternalId: '33410',
-    storeProductNameHe: 'אורז פרסי סוגת 1 ק״ג',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-rice-sugat',
-    barcode: '7290000211442',
-    storeId: 'carrefour',
-    storeInternalId: '211442',
-    storeProductNameHe: 'אורז פרסי סוגת 1 ק״ג',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-
-  // Yad Mordechai Olive Oil 750ml
-  {
-    productId: 'p-olive-oil',
-    barcode: '7290010429554',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290010429554',
-    storeProductNameHe: 'שמן זית כתית מעולה יד מרדכי 750 מ״ל',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-olive-oil',
-    barcode: '7290010429554',
-    storeId: 'ramilevy',
-    storeInternalId: '77412',
-    storeProductNameHe: 'שמן זית יד מרדכי 750 מ״ל',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-olive-oil',
-    barcode: '7290010429554',
-    storeId: 'carrefour',
-    storeInternalId: '10429554',
-    storeProductNameHe: 'שמן זית יד מרדכי כתית מעולה',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-
-  // Mutti / Master Chef Crushed Tomatoes
-  {
-    productId: 'p-tomato-paste',
-    barcode: '7290121162562',
-    storeId: 'shufersal',
-    storeInternalId: 'P_7290121162562',
-    storeProductNameHe: 'עגבניות מרוסקות מאסטר שף 400 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-tomato-paste',
-    barcode: '7290121162562',
-    storeId: 'ramilevy',
-    storeInternalId: '19044',
-    storeProductNameHe: 'עגבניות מרוסקות 400 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-tomato-paste',
-    barcode: '7290121162562',
-    storeId: 'carrefour',
-    storeInternalId: '121162562',
-    storeProductNameHe: 'עגבניות מרוסקות מאסטר שף',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'official-api',
-  },
-
-  // Fresh Chicken Breast (Weighed / Butcher)
-  {
-    productId: 'p-chicken-breast',
-    barcode: '7290001002011',
-    storeId: 'shufersal',
-    storeInternalId: 'P_1002011',
-    storeInternalSku: 'PLU-0201',
-    storeProductNameHe: 'חזה עוף טרי שלם קצביה',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-chicken-breast',
-    barcode: '7290001002011',
-    storeId: 'ramilevy',
-    storeInternalId: '90112',
-    storeInternalSku: 'PLU-CHICKEN-1',
-    storeProductNameHe: 'חזה עוף שלם טרי בקצבייה',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-chicken-breast',
-    barcode: '7290001002011',
-    storeId: 'carrefour',
-    storeInternalId: '1002011',
-    storeProductNameHe: 'חזה עוף טרי קצביה',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'inferred',
-  },
-
-  // Fresh Ground Beef
-  {
-    productId: 'p-ground-beef',
-    barcode: '7290001003018',
-    storeId: 'shufersal',
-    storeInternalId: 'P_1003018',
-    storeInternalSku: 'PLU-0301',
-    storeProductNameHe: 'בשר בקר טרי טחון קצביה',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-ground-beef',
-    barcode: '7290001003018',
-    storeId: 'ramilevy',
-    storeInternalId: '90305',
-    storeProductNameHe: 'בשר בקר טרי טחון לקילו',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-
-  // Fresh Greenhouse Tomatoes (Weighed)
-  {
-    productId: 'p-tomatoes',
-    barcode: '7290000000015',
-    storeId: 'shufersal',
-    storeInternalId: 'P_1001',
-    storeInternalSku: 'PLU-0015',
-    storeProductNameHe: 'עגבניות חממה מובחרות לשקילה',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-tomatoes',
-    barcode: '7290000000015',
-    storeId: 'ramilevy',
-    storeInternalId: '10015',
-    storeProductNameHe: 'עגבניות חממה',
-    isDirectInjectSupported: false,
-    unitType: 'kg',
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-
-  // Smoked Bacon (Non-Kosher, Tiv Taam)
-  {
-    productId: 'p-bacon',
-    barcode: '7290007890123',
-    storeId: 'tivtaam',
-    storeInternalId: 'TT-7890123',
-    storeProductNameHe: 'בייקון מעושן פרימיום 200 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-  {
-    productId: 'p-bacon',
-    barcode: '7290007890123',
-    storeId: 'keshet',
-    storeInternalId: 'KT-7890123',
-    storeProductNameHe: 'בייקון פרוס מעושן',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
-
-  // Black Tiger Shrimp (Non-Kosher, Tiv Taam)
-  {
-    productId: 'p-shrimp',
-    barcode: '7290007890451',
-    storeId: 'tivtaam',
-    storeInternalId: 'TT-7890451',
-    storeProductNameHe: 'שרימפס בלאק טייגר קפוא מובחר 500 גרם',
-    isDirectInjectSupported: true,
-    lastVerified: '2026-10-20',
-    syncSource: 'catalog-sync',
-  },
+export const MAPPED_STORE_IDS: StoreId[] = [
+  'shufersal',
+  'ramilevy',
+  'carrefour',
+  'tivtaam',
+  'victory',
+  'machsaneihashuk',
+  'keshet',
 ];
 
-/**
- * Auto-generate initial mappings for any remaining products in mockData
- */
-function seedMissingProductsFromCatalog(): StoreProductMapping[] {
-  const result: StoreProductMapping[] = [...INITIAL_STORE_MAPPINGS];
-  const existingKeys = new Set(
-    INITIAL_STORE_MAPPINGS.map((m) => `${m.productId}-${m.storeId}`)
-  );
+export function buildCatalogMappings(products: Product[]): StoreProductMapping[] {
+  const verifiedOn = '2026-10-25';
+  const result: StoreProductMapping[] = [];
 
-  for (const product of PRODUCTS) {
-    const stores: StoreId[] = ['shufersal', 'ramilevy', 'carrefour', 'tivtaam'];
-    for (const storeId of stores) {
-      const key = `${product.id}-${storeId}`;
-      if (!existingKeys.has(key)) {
-        let internalId = product.barcode;
-        if (storeId === 'shufersal') {
-          internalId = product.isWeighedOrButcher ? `P_${product.barcode.slice(-6)}` : `P_${product.barcode}`;
-        } else if (storeId === 'ramilevy') {
-          internalId = `${Math.floor(10000 + Math.random() * 89999)}`;
-        } else if (storeId === 'carrefour') {
-          internalId = product.carrefourCode || product.barcode.slice(-7);
-        }
-
-        result.push({
-          productId: product.id,
-          barcode: product.barcode,
-          storeId,
-          storeInternalId: internalId,
-          storeProductNameHe: product.nameHe,
-          isDirectInjectSupported: !product.isWeighedOrButcher,
-          unitType: product.isWeighedOrButcher ? 'kg' : 'unit',
-          lastVerified: '2026-10-20',
-          syncSource: 'inferred',
-        });
-      }
+  for (const product of products) {
+    for (const storeId of MAPPED_STORE_IDS) {
+      result.push({
+        productId: product.id,
+        barcode: product.barcode,
+        storeId,
+        storeInternalId: product.barcode,
+        storeProductNameHe: product.nameHe,
+        isDirectInjectSupported: false,
+        unitType: product.isWeighedOrButcher ? 'kg' : 'unit',
+        lastVerified: verifiedOn,
+        syncSource: 'inferred',
+      });
     }
   }
 
   return result;
 }
 
+function hasLocalStorage(): boolean {
+  try {
+    return typeof globalThis.localStorage !== 'undefined' && typeof globalThis.localStorage.getItem === 'function';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Product Mapping Database Manager
- * Persists and resolves store-specific internal product identifiers.
+ * Persists barcode cross-references. It does not claim chain-internal ids it has not verified.
  */
 class ProductMappingDatabase {
   private mappings: Map<string, StoreProductMapping> = new Map();
@@ -421,29 +61,37 @@ class ProductMappingDatabase {
   }
 
   private init(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed: StoreProductMapping[] = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          for (const m of parsed) {
-            this.mappings.set(`${m.productId}-${m.storeId}`, m);
+    if (hasLocalStorage()) {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed: StoreProductMapping[] = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            for (const m of parsed) {
+              if (!m || !m.productId || !m.storeId) continue;
+              this.mappings.set(`${m.productId}-${m.storeId}`, m);
+            }
+            if (this.mappings.size > 0) return;
           }
-          return;
         }
+      } catch (e) {
+        console.warn('Could not read product mappings from localStorage, seeding default:', e);
       }
-    } catch (e) {
-      console.warn('Could not read product mappings from localStorage, seeding default:', e);
     }
 
-    const seeded = seedMissingProductsFromCatalog();
-    for (const m of seeded) {
+    this.seedDefaults();
+  }
+
+  private seedDefaults(): void {
+    this.mappings.clear();
+    for (const m of buildCatalogMappings(PRODUCTS)) {
       this.mappings.set(`${m.productId}-${m.storeId}`, m);
     }
     this.saveToStorage();
   }
 
   private saveToStorage(): void {
+    if (!hasLocalStorage()) return;
     try {
       const arr = Array.from(this.mappings.values());
       localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
@@ -456,13 +104,14 @@ class ProductMappingDatabase {
     return this.mappings.get(`${productId}-${storeId}`);
   }
 
+  /**
+   * Returns a store code only when one was explicitly stored.
+   * Does not prefix barcodes with P_ or invent a Rami Levy id.
+   */
   public resolveStoreCode(productId: string, storeId: StoreId, fallbackBarcode?: string): string {
     const entry = this.getMapping(productId, storeId);
     if (entry && entry.storeInternalId) {
       return entry.storeInternalId;
-    }
-    if (storeId === 'shufersal' && fallbackBarcode) {
-      return `P_${fallbackBarcode}`;
     }
     return fallbackBarcode || productId;
   }
@@ -507,12 +156,7 @@ class ProductMappingDatabase {
   }
 
   public resetToDefaults(): void {
-    this.mappings.clear();
-    const seeded = seedMissingProductsFromCatalog();
-    for (const m of seeded) {
-      this.mappings.set(`${m.productId}-${m.storeId}`, m);
-    }
-    this.saveToStorage();
+    this.seedDefaults();
   }
 }
 

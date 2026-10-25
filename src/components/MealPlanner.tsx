@@ -37,12 +37,13 @@ export const MealPlanner: React.FC<MealPlannerProps> = ({
 
   const handleAddMealToCart = (recipe: MealRecipe) => {
     const currentServings = servingMultipliers[recipe.id] || recipe.servings;
-    const ratio = currentServings / recipe.servings;
+    const ratio = recipe.servings > 0 ? currentServings / recipe.servings : 1;
 
-    const itemsToAdd = recipe.ingredients.map((ing) => {
-      const product = PRODUCTS.find((p) => p.id === ing.productId)!;
+    const itemsToAdd = recipe.ingredients.flatMap((ing) => {
+      const product = PRODUCTS.find((p) => p.id === ing.productId);
+      if (!product) return [];
       const scaledQty = Math.max(1, Math.round(ing.quantity * ratio));
-      return { product, quantity: scaledQty };
+      return [{ product, quantity: scaledQty }];
     });
 
     onAddMultipleToCart(itemsToAdd);

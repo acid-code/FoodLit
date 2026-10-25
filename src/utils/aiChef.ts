@@ -254,6 +254,46 @@ function generateLocalSmartRecipe(req: AiRecipeRequest): MealRecipe {
   };
 }
 
+const KNOWN_PRODUCT_IDS = new Set(PRODUCTS.map((product) => product.id));
+
+/**
+ * Drops ingredient ids the catalog does not know. An unknown id used to crash
+ * the weekly plan, because the grid assumed every productId resolved.
+ */
+export function sanitizeGeneratedRecipe(recipe: MealRecipe, req: AiRecipeRequest): MealRecipe | null {
+  if (!recipe || typeof recipe !== 'object') return null;
+  const ingredients = Array.isArray(recipe.ingredients)
+    ? recipe.ingredients.filter(
+        (ing) =>
+          !!ing &&
+          KNOWN_PRODUCT_IDS.has(ing.productId) &&
+          Number.isFinite(ing.quantity) &&
+          ing.quantity > 0
+      )
+    : [];
+  if (ingredients.length === 0) return null;
+
+  const servings =
+    Number.isFinite(recipe.servings) && recipe.servings > 0 ? recipe.servings : Math.max(1, req.householdSize || 1);
+
+  return {
+    ...recipe,
+    id: typeof recipe.id === 'string' && recipe.id.trim() ? recipe.id.trim().slice(0, 80) : `meal-ai-${Date.now()}`,
+    titleHe: typeof recipe.titleHe === 'string' && recipe.titleHe.trim() ? recipe.titleHe.trim().slice(0, 140) : 'מתכון',
+    servings,
+    ingredients: ingredients.map((ing) => ({
+      productId: ing.productId,
+      quantity: ing.quantity,
+      customNoteHe: typeof ing.customNoteHe === 'string' ? ing.customNoteHe.slice(0, 140) : undefined,
+    })),
+    instructionsHe: Array.isArray(recipe.instructionsHe)
+      ? recipe.instructionsHe.filter((step): step is string => typeof step === 'string').slice(0, 12)
+      : [],
+    isAiGenerated: true,
+    aiPrompt: req.prompt,
+  };
+}
+
 /**
  * Call server-side Gemini endpoint /api/suggest-recipe with graceful fallback to localSmartChef
  */
@@ -261,22 +301,24 @@ export async function generateRecipeWithAi(req: AiRecipeRequest): Promise<{
   recipe: MealRecipe;
   source: 'gemini-3.8-flash' | 'local-smart-chef';
 }> {
+  const localRecipe = sanitizeGeneratedRecipe(generateLocalSmartRecipe(req), req) ?? generateLocalSmartRecipe(req);
+
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
     const res = await fetch('/api/suggest-recipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
 
     if (res.ok) {
       const data = await res.json();
-      if (data && data.recipe) {
+      const sanitized = data?.recipe ? sanitizeGeneratedRecipe(data.recipe as MealRecipe, req) : null;
+      if (sanitized) {
         return {
-          recipe: {
-            ...data.recipe,
-            isAiGenerated: true,
-            aiPrompt: req.prompt,
-          },
+          recipe: sanitized,
           source: data.modelUsed || 'gemini-3.8-flash',
         };
       }
@@ -285,8 +327,6 @@ export async function generateRecipeWithAi(req: AiRecipeRequest): Promise<{
     console.warn('API route /api/suggest-recipe unavailable or failed, falling back to local culinary intelligence:', err);
   }
 
-  // Graceful fallback to smart local chef generator
-  const localRecipe = generateLocalSmartRecipe(req);
   return {
     recipe: localRecipe,
     source: 'local-smart-chef',

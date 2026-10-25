@@ -135,7 +135,7 @@ export const StartingWindow: React.FC<StartingWindowProps> = ({
                   className="text-xs text-slate-400 hover:text-slate-700 underline font-medium cursor-pointer inline-flex items-center gap-1 transition-colors"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>איפוס עוגייה והתחלה מחדש עם ימים ריקים</span>
+                  <span>איפוס הבחירות השמורות והתחלה מחדש עם ימים ריקים</span>
                 </button>
               </div>
             </>

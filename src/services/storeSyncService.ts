@@ -1,4 +1,4 @@
-import { StoreId, StoreSyncResult, StoreProductMapping } from '../types';
+import { StoreSyncResult, StoreProductMapping } from '../types';
 import { productMappingDb } from '../db/productMappingDb';
 import { PRODUCTS } from '../data/mockData';
 
@@ -43,13 +43,13 @@ class StoreSyncService {
         syncedAt: new Date(this.lastSyncTimestamp).toISOString(),
         totalProductsCount: PRODUCTS.length,
         mappedCount: dbStats.byStore['carrefour']?.count || 48,
-        newlyDiscoveredCount: 3,
-        directInjectSupported: true,
+        newlyDiscoveredCount: 0,
+        directInjectSupported: false,
         automationSupport: {
-          bookmarklet: true,
+          bookmarklet: false,
           mcp: false,
           directUrl: true,
-          apiPayload: true,
+          apiPayload: false,
         },
       },
       {
@@ -58,13 +58,13 @@ class StoreSyncService {
         syncedAt: new Date(this.lastSyncTimestamp).toISOString(),
         totalProductsCount: PRODUCTS.length,
         mappedCount: dbStats.byStore['shufersal']?.count || 48,
-        newlyDiscoveredCount: 4,
-        directInjectSupported: true,
+        newlyDiscoveredCount: 0,
+        directInjectSupported: false,
         automationSupport: {
-          bookmarklet: true,
-          mcp: true,
+          bookmarklet: false,
+          mcp: false,
           directUrl: false,
-          apiPayload: true,
+          apiPayload: false,
         },
       },
       {
@@ -73,13 +73,13 @@ class StoreSyncService {
         syncedAt: new Date(this.lastSyncTimestamp).toISOString(),
         totalProductsCount: PRODUCTS.length,
         mappedCount: dbStats.byStore['ramilevy']?.count || 48,
-        newlyDiscoveredCount: 2,
-        directInjectSupported: true,
+        newlyDiscoveredCount: 0,
+        directInjectSupported: false,
         automationSupport: {
-          bookmarklet: true,
-          mcp: true,
+          bookmarklet: false,
+          mcp: false,
           directUrl: false,
-          apiPayload: true,
+          apiPayload: false,
         },
       },
       {
@@ -88,8 +88,8 @@ class StoreSyncService {
         syncedAt: new Date(this.lastSyncTimestamp).toISOString(),
         totalProductsCount: PRODUCTS.length,
         mappedCount: dbStats.byStore['tivtaam']?.count || 48,
-        newlyDiscoveredCount: 5,
-        directInjectSupported: true,
+        newlyDiscoveredCount: 0,
+        directInjectSupported: false,
         automationSupport: {
           bookmarklet: false,
           mcp: false,
@@ -103,8 +103,8 @@ class StoreSyncService {
         syncedAt: new Date(this.lastSyncTimestamp).toISOString(),
         totalProductsCount: PRODUCTS.length,
         mappedCount: dbStats.byStore['victory']?.count || 42,
-        newlyDiscoveredCount: 1,
-        directInjectSupported: true,
+        newlyDiscoveredCount: 0,
+        directInjectSupported: false,
         automationSupport: {
           bookmarklet: false,
           mcp: false,
@@ -139,8 +139,8 @@ class StoreSyncService {
   }
 
   /**
-   * Run synchronization across stores to fetch updated internal IDs,
-   * verify barcode availability, and register new catalog entries.
+   * Refreshes the local sample mapping. This does not download government price
+   * files or chain catalogs; the server responds that live sync is not configured.
    */
   public async triggerSync(): Promise<StoreSyncResult[]> {
     this.isSyncing = true;

@@ -492,10 +492,8 @@ export const WeeklyMealGrid: React.FC<WeeklyMealGridProps> = ({
   const budgetMin = preferences.budgetMin || 250;
   const remainingBudget = budgetMax - totalWeeklyCost;
   const isOverBudget = remainingBudget < 0;
-  const budgetUsagePercent = Math.min(
-    100,
-    Math.round((totalWeeklyCost / budgetMax) * 100)
-  );
+  const budgetUsagePercent =
+    budgetMax > 0 ? Math.min(100, Math.round((totalWeeklyCost / budgetMax) * 100)) : 0;
 
   // Collect and aggregate needed ingredients for all active meals:
   // Smarter grocery list: leftover meals do NOT duplicate ingredients!
@@ -522,10 +520,11 @@ export const WeeklyMealGrid: React.FC<WeeklyMealGridProps> = ({
       });
     });
 
-    const neededItems: NeededIngredientItem[] = Object.entries(ingredientMap).map(([productId, quantityNeeded]) => ({
-      product: PRODUCTS.find((p) => p.id === productId)!,
-      quantityNeeded,
-    }));
+    const neededItems: NeededIngredientItem[] = Object.entries(ingredientMap).flatMap(([productId, quantityNeeded]) => {
+      const product = PRODUCTS.find((p) => p.id === productId);
+      if (!product) return [];
+      return [{ product, quantityNeeded }];
+    });
 
     onProceedToPantryCheck(neededItems);
   };

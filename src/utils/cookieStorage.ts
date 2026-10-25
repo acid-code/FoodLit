@@ -3,36 +3,83 @@ import { UserPreferences, StoreId } from '../types';
 const COOKIE_NAME = 'salkal_user_prefs';
 
 /**
- * Reads user preferences from cookie (with localStorage fallback)
+ * Meal plans and dietary choices are personal data under the Privacy Protection
+ * Law (Amendment 13). Keep them in localStorage so they are not sent to the
+ * server on every request. A legacy cookie, if present, is copied once and cleared.
+ */
+export const PREFERENCE_STORAGE_KEY = COOKIE_NAME;
+
+export function readNamedCookie(cookieString: string, name: string): string | null {
+  const parts = cookieString.split(';');
+  for (const part of parts) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    if (trimmed.slice(0, eq) !== name) continue;
+    const raw = trimmed.slice(eq + 1);
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return null;
+}
+
+function readLocalPreferences(): UserPreferences | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const local = localStorage.getItem(PREFERENCE_STORAGE_KEY);
+    if (!local) return null;
+    const parsed = JSON.parse(local);
+    if (parsed && typeof parsed === 'object') return parsed as UserPreferences;
+  } catch (err) {
+    console.warn('Failed to parse saved user preferences', err);
+  }
+  return null;
+}
+
+function readLegacyCookiePreferences(): UserPreferences | null {
+  try {
+    if (typeof document === 'undefined') return null;
+    const raw = readNamedCookie(document.cookie, COOKIE_NAME);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') return parsed as UserPreferences;
+  } catch (err) {
+    console.warn('Failed to parse legacy preference cookie', err);
+  }
+  return null;
+}
+
+function clearLegacyPreferenceCookie(): void {
+  if (typeof document === 'undefined') return;
+  const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${COOKIE_NAME}=; max-age=0; path=/; SameSite=Lax${secure}`;
+}
+
+/**
+ * Reads user preferences from localStorage.
+ * Migrates a previously stored cookie into localStorage and then deletes the cookie.
  */
 export function getSavedUserPreferences(): UserPreferences | null {
-  try {
-    // 1. Check document.cookie
-    if (typeof document !== 'undefined') {
-      const match = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith(`${COOKIE_NAME}=`));
-
-      if (match) {
-        const raw = decodeURIComponent(match.split('=')[1]);
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          return parsed as UserPreferences;
-        }
-      }
-
-      // 2. Fallback to localStorage
-      const local = localStorage.getItem(COOKIE_NAME);
-      if (local) {
-        const parsed = JSON.parse(local);
-        if (parsed && typeof parsed === 'object') {
-          return parsed as UserPreferences;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to parse saved user preferences from cookie', err);
+  const local = readLocalPreferences();
+  if (local) {
+    clearLegacyPreferenceCookie();
+    return local;
   }
+
+  const fromCookie = readLegacyCookiePreferences();
+  if (fromCookie) {
+    try {
+      localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(fromCookie));
+    } catch (err) {
+      console.warn('Failed to migrate preference cookie into localStorage', err);
+    }
+    clearLegacyPreferenceCookie();
+    return fromCookie;
+  }
+
   return null;
 }
 
@@ -40,28 +87,21 @@ export function getSavedUserPreferences(): UserPreferences | null {
  * Checks if a cookie or saved preferences exist for returning user
  */
 export function hasUserPreferencesCookie(): boolean {
-  if (typeof document === 'undefined') return false;
-  const match = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith(`${COOKIE_NAME}=`));
-  if (match) return true;
-  return !!localStorage.getItem(COOKIE_NAME);
+  if (readLocalPreferences()) return true;
+  return readLegacyCookiePreferences() != null;
 }
 
 /**
- * Saves user preferences to both cookie and localStorage
+ * Saves user preferences on this device only. They are not written to a cookie.
  */
 export function saveUserPreferences(prefs: UserPreferences): void {
   try {
     const jsonStr = JSON.stringify(prefs);
-    if (typeof document !== 'undefined') {
-      // 1 year expiration
-      const maxAge = 60 * 60 * 24 * 365;
-      document.cookie = `${COOKIE_NAME}=${encodeURIComponent(jsonStr)}; max-age=${maxAge}; path=/; SameSite=Lax`;
-      localStorage.setItem(COOKIE_NAME, jsonStr);
-    }
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(PREFERENCE_STORAGE_KEY, jsonStr);
+    clearLegacyPreferenceCookie();
   } catch (err) {
-    console.warn('Failed to save user preferences to cookie', err);
+    console.warn('Failed to save user preferences', err);
   }
 }
 
@@ -71,8 +111,8 @@ export function saveUserPreferences(prefs: UserPreferences): void {
 export function clearUserPreferencesCookie(): void {
   try {
     if (typeof document !== 'undefined') {
-      document.cookie = `${COOKIE_NAME}=; max-age=0; path=/; SameSite=Lax`;
-      localStorage.removeItem(COOKIE_NAME);
+      clearLegacyPreferenceCookie();
+      localStorage.removeItem(PREFERENCE_STORAGE_KEY);
     }
   } catch (err) {
     console.warn('Failed to clear user preferences cookie', err);
